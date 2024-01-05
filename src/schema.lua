@@ -8,6 +8,8 @@ return {
         type = "record",
         fields = {
           { virtual_tests = { type = "string", required = true }, },
-    }, }, },
+        },
+      },
+    },
   },
 }
