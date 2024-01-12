@@ -3,6 +3,7 @@ local resty_sha256 = require "resty.sha256"
 local str = require "resty.string"
 local json = require('cjson.safe')
 local kong = kong
+local json_navigator = require("kong.enterprise_edition.transformations.plugins.json_navigator") or nil
 
 local function sha256aValue(value)
   local sha256 = resty_sha256:new()
@@ -66,9 +67,42 @@ local function deep_compare(tbl1, tbl2)
 	return false
 end
 
+local function check_table_value(table, key, val)
+  local opts = {
+    dots_in_keys = false,
+  }
+
+  local matched = false
+  json_navigator.navigate_and_apply(table, key, function(o, p, ctx)
+    if o[p] == val then
+      kong.log.inspect("-> matching: '", o, "' against '", key, "=", val, "'")
+      matched = true
+    end
+  end, opts)
+
+  return matched
+end
+
+local function check_url_params(key, val)
+  local found = false
+  local captures = kong.request.get_uri_captures()
+
+  for name, value in pairs(captures.named) do
+    if (name == key) and (val == value) then
+      kong.log.debug("--> checking that '", name, "=", value, "' matches '", key, "=", val, "'")
+
+      found = true
+      break
+    end
+  end
+
+  return found
+end
+
 function _M.execute(conf)
   --Get the List of Virtual Test Cases
   local virtualTests = json.decode(conf.virtual_tests)
+
   if ngx.req.get_headers()["X-VirtualRequest"] then
     for i in pairs(virtualTests) do
       if (ngx.req.get_headers()["X-VirtualRequest"] == virtualTests[i].name and virtualTests[i].requestHttpMethod == ngx.req.get_method()) then
@@ -122,6 +156,40 @@ function _M.execute(conf)
       end
     end
     return virtualNoMatch(nil, nil)
+  else
+    -- specific logic for user
+    local requestJSON = kong.request.get_body("application/json")
+    if not requestJSON then
+      return kong.response.exit(400, { error = true, message = "plugin only supports application/json content-type" })
+    end
+
+    for i, v in ipairs(virtualTests) do
+      if v.requestCaptureName
+          and v.requestCaptureValue
+          and type(v.requestCaptureName) == "string"
+          and type(v.requestCaptureValue) == "string"
+      then
+        -- use request capture mode
+        local found = check_url_params(v.requestCaptureName, v.requestCaptureValue)
+        if found then
+          return virtualResponse(v)
+        end
+      end
+
+      if v.requestJSONFieldPath
+          and v.requestJSONFieldValue
+          and type(v.requestJSONFieldPath) == "string"
+          and type(v.requestJSONFieldValue) == "string"
+      then
+        -- use jsonpath capture mode
+        if not json_navigator then return kong.response.exit(500, "JSON field matching requires Kong Enterprise Edition") end
+
+        local found = check_table_value(requestJSON, v.requestJSONFieldPath, v.requestJSONFieldValue)
+        if found then
+          return virtualResponse(v)
+        end
+      end
+    end
   end
 
   return
