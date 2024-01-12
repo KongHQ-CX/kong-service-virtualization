@@ -89,7 +89,7 @@ local function check_url_params(key, val)
 
   for name, value in pairs(captures.named) do
     if (name == key) and (val == value) then
-      kong.log.debug("--> checking that '", name, "=", value, "' matches '", key, "=", val, "'")
+      kong.log.debug("-> matching '", name, "=", value, "' against '", key, "=", val, "'")
 
       found = true
       break
