@@ -12,17 +12,24 @@ local function sha256aValue(value)
 end
 
 local function virtualResponse(conf)
-  ngx.status = conf.responseHttpStatus
+  local body = ""
+  local status = 200
+
   if conf.response and conf.responseContentType then
     local decodedResponse = ngx.decode_base64(conf.response)
     ngx.header["Content-Type"] = conf.responseContentType
     ngx.header["Content-Length"] = #decodedResponse
-    ngx.print(decodedResponse)
-  else
-    ngx.print()
+    body = decodedResponse
   end
 
-  return ngx.exit(200)
+  if conf.responseHttpStatus then
+    status = conf.responseHttpStatus
+    if type(conf.responseHttpStatus) == "string" then
+      status = tonumber(status)
+    end
+  end
+
+  kong.response.exit(status, body)
 end
 
 local function virtualNoMatch(expectedSha256, foundSha256)
