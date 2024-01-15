@@ -5,6 +5,8 @@ local json = require('cjson.safe')
 local kong = kong
 local json_navigator = require("kong.enterprise_edition.transformations.plugins.json_navigator") or nil
 
+local DATE_MATCHER = "\\d{4}\\-(0?[1-9]|1[012])\\-(0?[1-9]|[12][0-9]|3[01])T\\d{2}:\\d{2}:00Z"
+
 local function sha256aValue(value)
   local sha256 = resty_sha256:new()
   sha256:update(value)
@@ -27,6 +29,12 @@ local function virtualResponse(conf)
     if type(conf.responseHttpStatus) == "string" then
       status = tonumber(status)
     end
+  end
+
+  if conf.setAllDatesToNow then
+    -- update all datetimes in the template, to NOW
+    local datetime_now = os.date("%Y-%m-%dT%H:%M:%SZ")
+    body = ngx.re.gsub(body, DATE_MATCHER, datetime_now)
   end
 
   kong.response.exit(status, body)
