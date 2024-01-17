@@ -173,8 +173,6 @@ function _M.execute(conf)
     return virtualNoMatch(nil, nil)
   else
     -- specific logic for user
-    local requestJSON = kong.request.get_body("application/json")
-
     for i, v in ipairs(virtualTests) do
       if v.requestCaptureName
           and v.requestCaptureValue
@@ -193,6 +191,7 @@ function _M.execute(conf)
           and type(v.requestJSONFieldPath) == "string"
           and type(v.requestJSONFieldValue) == "string"
       then
+        local requestJSON = kong.request.get_body("application/json")
         if not requestJSON then
           return kong.response.exit(400, { error = true, message = "'requestJSONField[Path/Value]' mode only supports application/json requests" })
         end
