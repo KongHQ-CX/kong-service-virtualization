@@ -174,9 +174,6 @@ function _M.execute(conf)
   else
     -- specific logic for user
     local requestJSON = kong.request.get_body("application/json")
-    if not requestJSON then
-      return kong.response.exit(400, { error = true, message = "plugin only supports application/json content-type" })
-    end
 
     for i, v in ipairs(virtualTests) do
       if v.requestCaptureName
@@ -196,6 +193,10 @@ function _M.execute(conf)
           and type(v.requestJSONFieldPath) == "string"
           and type(v.requestJSONFieldValue) == "string"
       then
+        if not requestJSON then
+          return kong.response.exit(400, { error = true, message = "'requestJSONField[Path/Value]' mode only supports application/json requests" })
+        end
+
         -- use jsonpath capture mode
         if not json_navigator then return kong.response.exit(500, "JSON field matching requires Kong Enterprise Edition") end
 
